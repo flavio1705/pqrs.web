@@ -19,6 +19,7 @@ export type PQRS = {
   location: string
   tracking_number: string
   timestamp: string
+  gravity_level : 'Baja' | 'Media' | 'Alta'
   created_at: string
   updated_at: string
   status?: 'pending' | 'in-progress' | 'resolved' | 'closed'
@@ -73,6 +74,28 @@ export const columns: ColumnDef<PQRS>[] = [
       <DataTableColumnHeader column={column} title="Subject" />
     ),
     cell: ({ row }) => <div className="max-w-[500px] truncate">{row.getValue("subject")}</div>,
+    enableSorting: true,
+    enableHiding: true,
+  },
+  {
+    accessorKey: "gravity_level",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Gravity" />
+    ),
+    cell: ({ row }) => {
+      const status = row.getValue("gravity_level") as PQRS["gravity_level"] || "Baja"
+      
+      return (
+        <Badge variant="secondary" className={
+          status === "Baja" ? "bg-green-100 text-green-800" :
+          status === "Media" ? "bg-orange-100 text-orange-800" :
+          status === "Alta" ? "bg-red-100 text-red-800" :
+          "bg-yellow-100 text-yellow-800"
+        }>
+          {status.charAt(0).toUpperCase() + status.slice(1)}
+        </Badge>
+      )
+    },
     enableSorting: true,
     enableHiding: true,
   },

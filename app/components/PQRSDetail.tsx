@@ -1,9 +1,9 @@
 'use client'
 
-import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, ChangeEvent } from 'react'
 import { format } from 'date-fns'
-import { AlertCircle, ChevronDown, ChevronUp, Copy, Edit, FileText, MapPin, Save, Clock, User, Calendar, Loader2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronUp, Copy, Edit, FileText, MapPin, Save, Clock, User, Calendar, Loader2, Brain } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -29,6 +29,11 @@ import { Status } from './Status'
 import { MetadataCard } from './MetadataCard'
 import ErrorBoundary from './ErrorBoundary'
 import VideoPlayer from './VideoPlayer'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { StatusGravity } from './StatusGravity'
 
 interface Attachment {
   type: 'audio' | 'image' | 'document' | 'text' | 'video'
@@ -58,6 +63,8 @@ interface PQRS {
   attachments: string
   is_anonymous: number
   identifier: string
+  gravity_level : 'Baja' | 'Media' | 'Alta'
+  gravity_explanation : string
   phone_number: string
   subject: string
   location: string
@@ -96,6 +103,9 @@ export default function PQRSDetail() {
   const [copied, setCopied] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(true)
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedPQRS, setEditedPQRS] = useState<PQRS | null>(null)
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchPQRSDetail() {
@@ -118,8 +128,10 @@ export default function PQRSDetail() {
         if (!data || Object.keys(data).length === 0) {
           throw new Error('No data received or empty object returned')
         }
+        console.log(data, 'data');
 
         setPQRS(data)
+        setEditedPQRS(data)
       } catch (err) {
         console.error('Error in fetchPQRSDetail:', err)
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
@@ -152,8 +164,8 @@ export default function PQRSDetail() {
       const data = await response.json()
       setAudioTranscriptions(prev => ({
         ...prev,
-        [mediaId]: { 
-          ...prev[mediaId], 
+        [mediaId]: {
+          ...prev[mediaId],
           transcription: data.text,
           isTranscribing: false
         }
@@ -167,6 +179,7 @@ export default function PQRSDetail() {
       }))
     }
   }
+
 
   const copyTrackingNumber = () => {
     if (pqrs) {
@@ -186,13 +199,71 @@ export default function PQRSDetail() {
   const handleSave = (mediaId: string, editedTranscription: string) => {
     setAudioTranscriptions(prev => ({
       ...prev,
-      [mediaId]: { 
-        ...prev[mediaId], 
+      [mediaId]: {
+        ...prev[mediaId],
         transcription: editedTranscription,
         isEditing: false
       }
     }))
   }
+
+
+  const handleStartEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedPQRS(pqrs)
+  };
+
+
+  const handleSavePQRS = async () => {
+    if (!editedPQRS) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(`/api/pqrs/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editedPQRS),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      }
+
+      setPQRS(editedPQRS);
+      setIsEditing(false);
+      router.refresh()
+    } catch (err) {
+      console.error('Error updating PQRS:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: keyof PQRS) => {
+    if (editedPQRS) {
+      setEditedPQRS({ ...editedPQRS, [field]: e.target.value });
+    }
+  };
+
+  const handleSelectChange = (value: string, field: keyof PQRS) => {
+    if (editedPQRS) {
+      setEditedPQRS({ ...editedPQRS, [field]: value });
+    }
+  };
 
   if (loading) {
     return (
@@ -221,6 +292,7 @@ export default function PQRSDetail() {
       </Alert>
     )
   }
+
 
   const attachments: Attachment[] = pqrs?.attachments ? JSON.parse(pqrs.attachments || '[]') : []
   const textAttachment = attachments.find(att => att.type === 'text')
@@ -281,7 +353,7 @@ export default function PQRSDetail() {
                   </Badge>
                 )}
               </div>
-              <p className="text-lg text-gray-600">{pqrs.subject}</p>
+              <p className="text-lg text-gray-600">Title: {pqrs.subject}</p>
               <div className="flex items-center gap-4 mt-4">
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Calendar className="h-4 w-4" />
@@ -293,10 +365,31 @@ export default function PQRSDetail() {
                 </div>
               </div>
             </div>
-            <Status status={pqrs?.status || 'pending'} />
+            <div className="flex gap-2">
+              <Status status={pqrs?.status || 'pending'} />
+              {!isEditing && (
+                <Button
+                  onClick={handleStartEdit}
+                  variant="secondary"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-
+        <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-2xl font-bold text-gray-900">Information generated by artificial intelligence</h2>
+              </div>
+              <StatusGravity status={pqrs?.gravity_level || 'Baja'} />
+              <p className="text-lg text-gray-600">Explanation of gravity: {pqrs.gravity_explanation}</p>
+            </div>
+          </div>
+        </div>
         <div className="grid gap-8 md:grid-cols-3">
           {/* Main Content */}
           <div className="md:col-span-2 space-y-8">
@@ -324,22 +417,93 @@ export default function PQRSDetail() {
                 <div className="p-6">
                   <ScrollArea className="h-[400px] rounded-md">
                     <div className="prose prose-sm max-w-none space-y-6">
-                      <div className="space-y-4">
-                        <p className="text-lg font-semibold">{pqrs.subject}</p>
-                        <p className="text-gray-600">{pqrs.details}</p>
-                      </div>
+                      {isEditing ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-4">
+                            <div>
+                              <Label htmlFor="subject">Subject</Label>
+                              <Input
+                                id="subject"
+                                value={editedPQRS?.subject || ''}
+                                onChange={(e) => handleInputChange(e, 'subject')}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="status">Status</Label>
+                              <Select value={editedPQRS?.status || 'pending'} onValueChange={(value) => handleSelectChange(value, 'status')}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={editedPQRS?.status || 'pending'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="in-progress">In Progress</SelectItem>
+                                  <SelectItem value="resolved">Resolved</SelectItem>
+                                  <SelectItem value="closed">Closed</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="details">Details</Label>
+                            <Textarea
+                              id="details"
+                              value={editedPQRS?.details || ''}
+                              onChange={(e) => handleInputChange(e, 'details')}
+                              className="resize-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {pqrs?.subject && (
+                            <p className="text-lg font-semibold">{pqrs.subject}</p>
+                          )}
+                          {pqrs?.details && pqrs.details.split('\n\n').map((detail, index) => (
+                            <p key={index} className="text-gray-600">{detail}</p>
+                          ))}
+                          {!pqrs?.subject && !pqrs?.details && <p className="text-gray-400">No subject or details provided.</p>}
+                          {!pqrs?.subject && pqrs?.details && <p className="text-gray-400">No subject provided.</p>}
+                          {pqrs?.subject && !pqrs?.details && <p className="text-gray-400">No details provided.</p>}
+                        </div>
+                      )}
                       {pqrs.updates?.map((update, index) => (
                         <div key={index} className="border-t pt-4">
                           <p className="text-sm text-gray-500 mb-2">
                             {getUpdateEmoji(update.type)} Actualización {format(new Date(update.date), 'dd/MM/yyyy')}:
                           </p>
                           <p className="text-gray-600">{update.content}</p>
+                          {update.type && update.type !== "text" && (
+                            <p className="text-sm text-gray-500 mt-2">
+                              {getUpdateEmoji(update.type)} Se agregó un archivo
+                            </p>
+                          )}
                         </div>
+
                       ))}
                       {textAttachment?.content && (
                         <div className="border-t pt-4">
                           <p className="text-sm text-gray-500 mb-2">📝 Información Adicional:</p>
                           <p className="text-gray-600">{textAttachment.content}</p>
+                        </div>
+                      )}
+                      {isEditing && (
+                        <div className="mt-4 flex justify-end gap-2">
+                          <Button variant="outline" onClick={handleCancelEdit}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSavePQRS} disabled={loading}>
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="mr-2 h-4 w-4" />
+                                Save
+                              </>
+                            )}
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -366,7 +530,9 @@ export default function PQRSDetail() {
             )}
 
             {/* Enhanced Attachments Section */}
-            <Collapsible
+
+            {attachments.length > 0 && (
+              <Collapsible
               open={isAttachmentsOpen}
               onOpenChange={setIsAttachmentsOpen}
               className="bg-white rounded-lg shadow-sm border overflow-hidden"
@@ -398,7 +564,7 @@ export default function PQRSDetail() {
                       <ImageCarousel images={imageAttachments} />
                     </div>
                   )}
-                  
+
                   {documentAttachments.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -448,12 +614,12 @@ export default function PQRSDetail() {
                                 <div className="flex items-center justify-between mb-2">
                                   <h5 className="font-semibold text-sm text-gray-900">Transcription</h5>
                                   {audioTranscriptions[attachment.mediaId]?.isEditing ? (
-                                    <Button 
+                                    <Button
                                       onClick={() => handleSave(
-                                        attachment.mediaId, 
+                                        attachment.mediaId,
                                         audioTranscriptions[attachment.mediaId]?.transcription || ''
-                                      )} 
-                                      variant="ghost" 
+                                      )}
+                                      variant="ghost"
                                       size="sm"
                                     >
                                       <Save className="h-4 w-4 mr-2" />
@@ -503,9 +669,9 @@ export default function PQRSDetail() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {videoAttachments.map((attachment) => (
                           <div key={attachment.mediaId} className="max-w-md mx-auto w-full">
-                            <VideoPlayer 
-                              url={attachment.url} 
-                              caption={attachment.caption} 
+                            <VideoPlayer
+                              url={attachment.url}
+                              caption={attachment.caption}
                               id={`video-${attachment.mediaId}`}
                             />
                           </div>
@@ -516,6 +682,7 @@ export default function PQRSDetail() {
                 </div>
               </CollapsibleContent>
             </Collapsible>
+            )}
           </div>
 
           {/* Enhanced Sidebar */}
@@ -524,12 +691,12 @@ export default function PQRSDetail() {
               title="Status Information"
               description="Current state and timeline of the PQRS"
               items={[
-                { 
-                  label: 'Current Status', 
+                {
+                  label: 'Current Status',
                   value: <Status status={pqrs?.status || 'pending'} />
                 },
-                { 
-                  label: 'Created', 
+                {
+                  label: 'Created',
                   value: (
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-500" />
@@ -537,8 +704,8 @@ export default function PQRSDetail() {
                     </div>
                   )
                 },
-                { 
-                  label: 'Last Updated', 
+                {
+                  label: 'Last Updated',
                   value: (
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-500" />
@@ -546,8 +713,8 @@ export default function PQRSDetail() {
                     </div>
                   )
                 },
-                { 
-                  label: 'Type', 
+                {
+                  label: 'Type',
                   value: (
                     <Badge variant="outline" className="font-normal">
                       {pqrs.type}
@@ -561,8 +728,8 @@ export default function PQRSDetail() {
               title="Contact Information"
               description="Submitter details and contact methods"
               items={[
-                { 
-                  label: 'Submitted By', 
+                {
+                  label: 'Submitted By',
                   value: (
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-500" />
@@ -570,8 +737,8 @@ export default function PQRSDetail() {
                     </div>
                   )
                 },
-                { 
-                  label: 'Phone Number', 
+                {
+                  label: 'Phone Number',
                   value: pqrs.phone_number || 'Not provided'
                 },
               ]}

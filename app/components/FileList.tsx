@@ -54,7 +54,7 @@ export function FileList({ files }: FileListProps) {
           : { fileName: file.name || file.caption, fileExtension: getFileExtension(file.name || file.caption) };
 
         return (
-          <div key={index} className="flex items-center space-x-4 p-3 bg-gray-100 rounded-lg">
+          <div key={index} className="flex items-center space-x-4 p-3 bg-gray-100 rounded-lg mb-1">
             {getFileIcon(fileExtension)}
             <div className="flex-grow">
               <p className="text-sm font-medium truncate">{fileName}</p>

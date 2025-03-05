@@ -38,6 +38,7 @@ interface PQRS {
   updated_at: string
   identifier: string
   is_anonymous: number
+  gravity_level : 'Baja' | 'Media' | 'Alta'
   // Add other fields as necessary
 }
 interface DashboardProps {
@@ -47,6 +48,10 @@ interface DashboardProps {
 export function Dashboard({ data }: DashboardProps) {
   const statusCounts = data.reduce((acc, pqrs) => {
     acc[pqrs.type] = (acc[pqrs.type] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+  const statusCountsGravity = data.reduce((acc, pqrs) => {
+    acc[pqrs.gravity_level] = (acc[pqrs.gravity_level] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
@@ -61,12 +66,21 @@ export function Dashboard({ data }: DashboardProps) {
     acc[monthYear] = (acc[monthYear] || 0) + 1
     return acc
   }, {} as Record<string, number>)
-  console.log('statusCounts',statusCounts,data)
   const statusChartData = {
     labels: Object.keys(statusCounts),
     datasets: [
       {
         data: Object.values(statusCounts),
+        backgroundColor: ['#FFA500', '#4169E1', '#32CD32', '#A9A9A9'],
+      },
+    ],
+  }
+
+  const statusChartDataGravity = {
+    labels: Object.keys(statusCountsGravity),
+    datasets: [
+      {
+        data: Object.values(statusCountsGravity),
         backgroundColor: ['#FFA500', '#4169E1', '#32CD32', '#A9A9A9'],
       },
     ],
@@ -107,26 +121,8 @@ export function Dashboard({ data }: DashboardProps) {
   const previousMonthPQRS = totalPQRS - thisMonthPQRS
   const percentageIncrease = previousMonthPQRS > 0 
     ? ((thisMonthPQRS - previousMonthPQRS) / previousMonthPQRS) * 100 
-    : 100 // If there were no PQRS last month, we consider it a 100% increase
+    : 100
 
-  // Calculate average response time
-  const currentDate2 = new Date();
-  const avgResponseTime = data.reduce((sum, pqrs) => {
-    const createdDate = new Date(pqrs.created_at || pqrs.updated_at);
-    const updatedDate = new Date(pqrs.updated_at || pqrs.created_at);
-
-    // If the PQRS hasn't been updated, use the current date
-    const lastDate = updatedDate > createdDate ? updatedDate : currentDate2;
-
-    // Calculate the difference in days
-    const diffTime = Math.abs(lastDate.getTime() - createdDate.getTime());
-    const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-    return sum + diffDays;
-  }, 0) / totalPQRS;
-
-
-  // Calculate active users (assuming unique identifiers represent users)
   const activeUsers = new Set(data.map(pqrs => pqrs.identifier)).size
   const lastMonthActiveUsers = new Set(
     data
@@ -150,30 +146,15 @@ export function Dashboard({ data }: DashboardProps) {
         percentageIncrease={percentageIncrease}
         activeUsersChange={activeUsersChange}
       />
-
-      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total PQRS</CardTitle>
+      <div className="grid grid-cols-3 md:grid-cols-3 gap-6">
+      <Card>
+          <CardHeader>
+            <CardTitle>PQRS by Gravity</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.length}</div>
+            <Doughnut data={statusChartDataGravity} />
           </CardContent>
         </Card>
-        {Object.entries(statusCounts).map(([status, count]) => (
-          <Card key={status}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{status}</CardTitle>
-              <Status status={status as 'pending' | 'in-progress' | 'resolved' | 'closed'} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{count}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div> */}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>PQRS by Status</CardTitle>

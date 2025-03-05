@@ -65,10 +65,10 @@ export default function Home() {
         <section className="mb-12 text-center">
           <h1 className="text-4xl font-bold mb-4 text-gray-800">Welcome to PQRS Management System</h1>
           <p className="text-xl text-gray-600 mb-6">Efficiently manage and track Petitions, Complaints, Claims, and Suggestions</p>
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          {/* <Button className="bg-blue-600 hover:bg-blue-700">
             Create New PQRS
             <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          </Button> */}
         </section>
 
         {/* Dashboard Section */}
